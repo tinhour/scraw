@@ -1,0 +1,25 @@
+{
+  "dependencies": {
+    "cheerio": "^0.17.0",
+    "express": "^4.14.0",
+    "superagent": "^0.20.0",
+    "superagent-charset": "^1.1.1"
+  },
+  "description": "Higher-level content negotiation",
+  "devDependencies": {},
+  "author": {
+    "email": "fangfeng335@qq.com",
+    "name": "tinhour"
+  },
+  "homepage": "https://github.com/tinhour/screencapture-sendmail",
+  "installable": true,
+  "main": "index.js",
+  "name": "scraw",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tinhour/screencapture-sendmail"
+  },
+  "scripts": {},
+  "version": "0.0.1",
+  "license": "MIT"
+}
