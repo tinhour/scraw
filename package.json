@@ -2,10 +2,11 @@
   "dependencies": {
     "cheerio": "^0.17.0",
     "express": "^4.14.0",
+    "iconv-lite": "^0.4.13",
     "superagent": "^0.20.0",
     "superagent-charset": "^1.1.1"
   },
-  "description": "Higher-level content negotiation",
+  "description": "get info by get website page analyse dom",
   "devDependencies": {},
   "author": {
     "email": "fangfeng335@qq.com",
@@ -13,7 +14,7 @@
   },
   "homepage": "https://github.com/tinhour/screencapture-sendmail",
   "installable": true,
-  "main": "index.js",
+  "main": "superagent.js",
   "name": "scraw",
   "repository": {
     "type": "git",
