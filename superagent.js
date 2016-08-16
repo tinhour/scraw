@@ -26,7 +26,6 @@ app.get('/', function(req, res) {
                   display: block;
               }</style>
      <a href="/latestUpdate">/latestUpdate3</a>
-     <a href="/searchBook?key=雪鹰领主">/searchBook?key=雪鹰领主</a>
      <a href="/searchBookAsync?key=雪鹰领主">/searchBookAsync?key=雪鹰领主</a>
   `
   res.send(usage);
@@ -56,148 +55,54 @@ function getBookListItem(bookName, list) {
   }
   return thisItem;
 }
-/*
-async.waterfall([
-    myFirstFunction,
-    mySecondFunction,
-    myLastFunction,
-], function (err, result) {
-    // result now equals 'done'
-});
-function myFirstFunction(callback) {
-    callback(null, 'one', 'two');
-}
-function mySecondFunction(arg1, arg2, callback) {
-    // arg1 now equals 'one' and arg2 now equals 'two'
-    callback(null, 'three');
-}
-function myLastFunction(arg1, callback) {
-    // arg1 now equals 'three'
-    callback(null, 'done');
-}
-*/
-app.get('/searchBook', function(req, res, next) {
-  var key = req.query.key;
-  Log("Serchkey", key)
-  searchBook(key, function(err, sres) {
-    if (err) {
-      res.send(err)
-    } else {
-      var r = analyseListPage(sres.text);
-      var thisList;
-      if (r.data) {
-        for (var i in r.data) {
-          if (r.data[i].name == key && r.data[i].link) {
-            thisList = r.data[i];
-            break;
-          }
-        }
-      }
-      Log("searchResult", thisList)
-      if (!thisList) {
-        res.send({
-          error: "未找到书本:《" + key + "》"
-        })
-      } else {
-        //todo get thisList.link to get the result list
-        var pageListLink = baseDomain + thisList.link;
-        getPageContent(pageListLink, function(err, sres) {
-            if (err) {
-              res.send(err)
-            } else {
-              var r = analyseItemPage(sres.text);
-              //res.send(r);
-              //console.log("get analyseItemPage",r)
-              //todo goto artilce page ViewBook.aspx
-              if (r && r.data && r.data.length > 2) {
-                //todo analyse all links now just get first as newspost
-                //TODO: use asyn to get corect page.
-                var pageDetailLink = baseDomain + r.data[1].link;
-                getPageContent(pageDetailLink, function(err, sres) {
-                  if (err) {
-                    res.send(err)
-                  } else {
-                    //todo anlaylise 
-                    //Log("detail", sres.text);
-                   var targetSrc= analyseContentPage(sres.text)
-                     Log("targetSrc",targetSrc)
-                     if(targetSrc.error){
-                        res.send(targetSrc)
-                     }else{
-                        getPageContent(targetSrc.data,function (err,sres) {
-                          if(err){
-                            res.send(err)
-                          }else{
-                            // Log("true html:",sres.text)
-                            //res.send(sres.text)
-                            //todo anlayse true text
-                            //content
-                            var r=analyseArticleContent(sres.text)
-                            r.artilceName=key;
-                            res.send(r);
-                          }
-                        })
-                     }
-                  }
-                })
-              } else {
-                res.send({
-                  error: "没有章节:" + key + ""
-                })
-              }
-            }
-          })
-          //res.send(thisList);
-      }
-    }
-  })
-});
 
 app.get('/searchBookAsync', function(req, res, next) {
   var bookName = req.query.key;
   Log("Serchkey", bookName);
-    async.waterfall([
+  async.waterfall([
     function(callback) {
-      console.log("==>1",arguments)
-        searchBook(bookName,callback);
+      searchBook(bookName, callback);
     },
     function(bookName, sres, callback) {
-      console.log("==>2",bookName, callback)
-        searchBookResultProcess(null, bookName, sres, callback);
+      searchBookResultProcess(bookName, sres, callback);
     },
-    function(bookName, listLink,callback) {
-      console.log("==>3",arguments)
-        getItemList(null, bookName, listLink,callback)
+    function(bookName, listLink, callback) {
+      getItemList(bookName, listLink, callback)
     },
-    function(bookName,r,callback){
-      console.log("==>4",arguments)
+    function(bookName, r, callback) {
       async.doUntil(
-       function(callback){
-        if (r && r.data && r.data.length > 2) {
-          var item=r.data.splice(1,1);
-          if(!item){
-            callback({error: "所有章节出错:" + bookName + ""})
-          }else{
-            console.log("getArticlContent",bookName,item,item.name,item.link)
-            getArticlContent(null,bookName, item[0].name, baseDomain + item[0].link,callback)
+        function(callback) {
+          if (r && r.data && r.data.length > 2) {
+            var item = r.data.splice(1, 1);
+            if (!item) {
+              callback({
+                error: "所有章节出错:" + bookName + ""
+              })
+            } else {
+              getArticlContent(bookName, item[0].name, baseDomain + item[0].link, callback)
+            }
+          } else {
+            callback({
+              error: "没有章节:" + bookName + ""
+            })
           }
-        }else{
-          callback({error: "没有章节:" + bookName + ""})
+        },
+        function(result) {
+          return !!result.data
+        },
+        function(err, d) {
+          callback(err, d)
         }
-        
-       },
-       function(result){return !!result.data},
-       function(err,d){callback(err,d)}
       )
     }
-], function (err, result) {
-    if(err){
+  ], function(err, result) {
+    if (err) {
       res.send(err)
-    }else{
+    } else {
       res.send(result)
     }
-    
-});
+
+  });
 })
 
 function getPageContent(url, callback) {
@@ -232,32 +137,25 @@ function searchBook(key, callback) {
       }
       var endGetPageTime = new Date();
       Log("post [%s] page cost time %ds", url, (endGetPageTime - startTime) / 1000)
-      callback(null, key,sres)
+      callback(null, key, sres)
     })
 }
 
-function searchBookResultProcess(err, bookName, sres, callback) {
-  if (err) {
-    callback(err)
+function searchBookResultProcess(bookName, sres, callback) {
+  var r = analyseListPage(sres.text);
+  var thisList = getBookListItem(bookName, r);
+  Log("searchResult", thisList)
+  if (!thisList) {
+    callback({
+      error: "未找到书本:《" + bookName + "》"
+    })
   } else {
-    var r = analyseListPage(sres.text);
-    var thisList = getBookListItem(bookName, r);
-    Log("searchResult", thisList)
-    if (!thisList) {
-      callback({
-        error: "未找到书本:《" + bookName + "》"
-      })
-    } else {
-      callback(null, bookName, thisList)
-    }
+    callback(null, bookName, thisList)
   }
 }
 
-function getItemList(err, bookName, listLink,callback) {
-  console.log("getItemList",err,bookName,listLink,callback)
+function getItemList(bookName, listLink, callback) {
   var pageListLink = baseDomain + listLink.link;
-  //get full Articles or
-  //get page List of newArticles
   getPageContent(pageListLink, function(err, sres) {
     if (err) {
       callback(err)
@@ -268,7 +166,7 @@ function getItemList(err, bookName, listLink,callback) {
   })
 }
 
-function getArticlContent(err, bookName, articleTitle, src,callback) {
+function getArticlContent(bookName, articleTitle, src, callback) {
   getPageContent(src, function(err, sres) {
     if (err) {
       callback(err)
@@ -276,16 +174,16 @@ function getArticlContent(err, bookName, articleTitle, src,callback) {
       var targetSrc = analyseContentPage(sres.text)
       Log("targetSrc", targetSrc)
       if (targetSrc.error) {
-        callback(null,targetSrc)
+        callback(null, targetSrc)
       } else {
         getPageContent(targetSrc.data, function(err, sres) {
           if (err) {
-            callback(null,err)
+            callback(null, err)
           } else {
             var r = analyseArticleContent(sres.text)
             r.bookName = bookName;
             r.artilceTitle = articleTitle;
-            callback(null,r);
+            callback(null, r);
           }
         })
       }
@@ -377,6 +275,7 @@ function analyseContentPage(html) {
 function analyseArticleContent(html) {
   var $ = cheerio.load(html);
   var content = $("[id*='content']");
+  //readercontainer site:m.dajiadu.net
   Log("content length:", content.length)
   if (!content.length) {
     return {
