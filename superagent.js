@@ -22,11 +22,12 @@ app.get('/', function(req, res) {
               a {
                   text-decoration: none;
                   line-height: 1.5em;
-                  padding-left: 1em;
                   display: block;
               }</style>
-     <a href="/latestUpdate">/latestUpdate3</a>
+     <h4>usage:</h4>
+     <a href="/latestUpdate">/latestUpdate</a>
      <a href="/searchBookAsync?key=雪鹰领主">/searchBookAsync?key=雪鹰领主</a>
+     <a href="/searchBookFromqidain?bookName=雪鹰领主">/searchBookFromqidain?bookName=雪鹰领主</a>
   `
   res.send(usage);
 })
@@ -42,19 +43,6 @@ app.get('/latestUpdate', function(req, res, next) {
     }
   })
 });
-
-function getBookListItem(bookName, list) {
-  var thisItem;
-  if (list && list.data) {
-    for (var i in list.data) {
-      if (list.data[i].name == bookName && list.data[i].link) {
-        thisItem = list.data[i];
-        break;
-      }
-    }
-  }
-  return thisItem;
-}
 
 app.get('/searchBookAsync', function(req, res, next) {
   var bookName = req.query.key;
@@ -105,6 +93,106 @@ app.get('/searchBookAsync', function(req, res, next) {
   });
 })
 
+//search book from guangwang qidian/shumeng/zhuyue
+//search this book from outsie novel site
+
+app.get("/searchBookFromqidain",function(req,res,next){
+  var bookName = req.query.bookName;
+  searchFromQidian(bookName,function(err,r){
+    res.send(err||r)
+  })
+})
+
+function searchFromQidian(bookName,callback){
+  //http://se.qidian.com/?kw=%E7%A7%91%E6%8A%80%E4%B9%8B%E9%97%A8
+  var url= config.qidianSearchUrl+"?kw="+bookName;
+  getPageContent(url, function(err, sres) {
+    if (err) {
+      callback(err)
+    } else {
+      var $ = cheerio.load(sres.text);
+      var r=$("#result-list li").html();
+      var bookItem=analyse_qidianSearchResult(bookName,sres.text);
+      if(bookItem.length ==1){
+        
+        getMenuPage_qidian(bookItem[0].firstPageLink,function(err,r){
+          for(var i in r){
+            bookItem[0][i]=r[i];
+          }
+          //callback(bookItem)
+          getMenu_qidian(r[i],function(err,r){
+            for(var i in r){
+              bookItem[0][i]=r[i];
+            }
+            callback(bookItem)
+          })
+        })
+      }else{
+        callback(null,bookItem);
+      }
+    }
+  })
+}
+
+function analyse_qidianSearchResult(bookName,html){
+  var $ = cheerio.load(html);
+  var li=$("#result-list li");
+  var r=[]
+  for(var i=0;i<li.length;i++){
+    var item=li[i],thisBookName=$(item).find("h4>a").text().trim();
+    r.push({
+    firstPageLink:$(item).find("h4>a").attr("href"),
+    bookName:thisBookName,
+    author:$(item).find(".author>a.name").text().trim(),
+    type:$(item).find(".author>a").eq(1).text().trim(),
+    status:$(item).find(".author>span").text().trim(),
+    subject:$(item).find(".intro").text().trim(),
+    latestUpdate:$(item).find(".update>a").text().replace(/最新更新\s*/,"").trim(),
+    latestUpdateTime:$(item).find(".update>span").text().trim()
+    })
+    if(thisBookName == bookName) break;
+  }
+  return r;
+}
+
+function getMenuPage_qidian(firstPageUrl,callback){
+  getPageContent(firstPageUrl, function(err, sres) {
+    if (err) {
+      callback(err)
+    } else {
+      var $ = cheerio.load(sres.text);
+      var a=$("div.book_pic div.opt li>a").eq(0)
+      if(a.text().trim()=="点击阅读"){
+        callback(null,{menuUrl:a.attr("href")}) 
+      }else{
+        callback({error:"没有找到点击阅读by $(\"div.book_pic div.opt li>a\")"})
+      }
+    }
+  })
+}
+
+function getMenu_qidian(menuPageUrl,callback){
+  getPageContent(menuPageUrl, function(err, sres) {
+    if (err) {
+      callback(err)
+    } else {
+      var $ = cheerio.load(sres.text);
+      var lis=$("#content li");
+      var articleTitle=[];
+      for(var i=0;i<lis.length;i++){
+        var item=$(lis[i])
+        var article={chapterTitle:item.text()}
+        articleTitle.push(item.text())
+      }
+      if(articleTitle.length>0){
+         callback(null,{articleTitle:articleTitle})
+      }else{
+        callback({error:"没有找到目录by $(\"#content li\") at:"+menuPageUrl})
+      }
+    }
+  })
+}
+
 function getPageContent(url, callback) {
   var startTime = new Date();
   superagent.get(url).set(browserAgent).charset()
@@ -139,6 +227,19 @@ function searchBook(key, callback) {
       Log("post [%s] page cost time %ds", url, (endGetPageTime - startTime) / 1000)
       callback(null, key, sres)
     })
+}
+
+function getBookListItem(bookName, list) {
+  var thisItem;
+  if (list && list.data) {
+    for (var i in list.data) {
+      if (list.data[i].name == bookName && list.data[i].link) {
+        thisItem = list.data[i];
+        break;
+      }
+    }
+  }
+  return thisItem;
 }
 
 function searchBookResultProcess(bookName, sres, callback) {
