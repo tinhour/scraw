@@ -7,7 +7,7 @@ var superagent = charsetCompoent(request);
 var iconv = require('iconv-lite');
 var async = require('async');
 var Log = require('./log.js').Log;
-var config = require('./config');
+var config = require('./config').config;
 var browserAgent = config.browserAgent;
 var baseDomain = config.baseDomain;
 var app = express();
@@ -27,7 +27,10 @@ app.get('/', function(req, res) {
      <h4>usage:</h4>
      <a href="/latestUpdate">/latestUpdate</a>
      <a href="/searchBookAsync?key=雪鹰领主">/searchBookAsync?key=雪鹰领主</a>
-     <a href="/searchBookFromqidain?bookName=雪鹰领主">/searchBookFromqidain?bookName=雪鹰领主</a>
+     <a href="/searchBook?key=光脑武尊">/searchBook?key=光脑武尊</a>
+     <a href="/searchBook?key=光脑">/searchBook?key=光脑</a>
+     <a href="/searchBookFromqidian?bookName=雪鹰领主">/searchBookFromqidain?bookName=雪鹰领主</a>
+     <a href="/searchBookFromCfwx?bookName=光脑武尊">/searchBookFromqidain?bookName=光脑武尊</a>
   `
   res.send(usage);
 })
@@ -96,14 +99,57 @@ app.get('/searchBookAsync', function(req, res, next) {
 //search book from guangwang qidian/shumeng/zhuyue
 //search this book from outsie novel site
 
-app.get("/searchBookFromqidain",function(req,res,next){
+app.get("/searchBookFromqidian",function(req,res,next){
   var bookName = req.query.bookName;
-  searchFromQidian(bookName,function(err,r){
+  searchBook_qidian(bookName,function(err,r){
     res.send(err||r)
   })
 })
 
-function searchFromQidian(bookName,callback){
+app.get('/searchBook', function(req, res, next) {
+  var bookName = req.query.key;
+  Log("Serchkey", bookName);
+  searchBook_all(bookName,processSearchResult)
+
+  function processSearchResult(err,result){
+    //res.send(err)
+    res.send(err||result)
+  }
+})
+
+function searchBook_all(bookName, callback) {
+  async.each(config.bookSites, _searchBook, function(err) {
+    callback(err ,config.bookSites)
+
+  });
+  function _searchBook(booksite, callback) {
+    var startTime = new Date();
+    var searchPage = booksite.searchPage;
+    var method = booksite.searchMethod;
+    var charset = booksite.searchKeyCode || "utf-8";
+    var searchQuery = booksite.searchQuery;
+    var buf = iconv.encode(bookName, charset);
+    var decodeSearchKey = "";
+    for (var j = 0; j < buf.length; j++) {
+      decodeSearchKey += '%' + buf[j].toString(16)
+    }
+    searchQuery = searchQuery.replace(/{key}/, decodeSearchKey);
+    superagent[method.toLowerCase()](searchPage)
+      .send(searchQuery).set(browserAgent)
+      .end(function(err, sres) {
+        if (err) {
+          err.myInfo = "search [" + bookName + "] at [" + searchPage + "] failed!"
+          return callback(err);
+        }
+        var endGetPageTime = new Date();
+        Log("[%s] %s cost %ds", method, searchPage, (endGetPageTime - startTime) / 1000)
+        booksite.searchResult = sres;
+        callback(null, bookName, sres)
+      });
+  }
+}
+
+function searchBook_qidian(bookName,callback){
   //http://se.qidian.com/?kw=%E7%A7%91%E6%8A%80%E4%B9%8B%E9%97%A8
   var url= config.qidianSearchUrl+"?kw="+bookName;
   getPageContent(url, function(err, sres) {
